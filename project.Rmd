@@ -1,0 +1,62 @@
+---
+title: "Machine Learning Project"
+author: "Yuleng Zeng"
+output: html_document
+---
+
+Load relevant library.
+```{r}
+library(caret)
+```
+
+###Download data
+Since the first 7 columns do not include any useful information for machine learning, I delete them first.
+```{r}
+dat <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), header=T, na.strings = c("","NA"))
+
+test <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), header=T,  na.strings = c("","NA"))
+
+dat <- dat[, colSums(is.na(dat)) < nrow(dat)*0.5]
+dat <- dat[,-(1:7)]
+```
+
+###Setting training and testing sets.
+Since the data is really large, I include only a small portion of it as training set. 
+```{r}
+set.seed(6666)
+inTrain <- createDataPartition(dat$classe, p=.2, list=F)
+training <- dat[inTrain,]
+testing <- dat[-inTrain,]
+```
+
+###Random forest.
+Since random forest is one of the top accurate prediction techniques, I apply it in the training set. The processing takes a while.
+```{r}
+ctrl <- trainControl(method="cv", number=4, allowParallel = T)
+modrf <- train(classe~., data=training, method="rf", prox=T, trControl=ctrl)
+max(modrf$results$Kappa)
+modrf$finalModel
+```
+
+The Kappa statistics for the final model is 95%, an excellent result already. The OOB error rate is around 3%. Therefore, I then apply this model in the testing data.
+
+###Cross validation
+```{r}
+pred <- predict(modrf,testing); testing$predRight <- pred==testing$classe
+sum(testing$predRight)/nrow(testing)
+```
+The prediction accuracy is 97% (out of sample error rate 3%), chiming with the OOB error rate of 3%. Hence confirm the previous expectation of getting a satisfying model by only a small proportion of the data.
+
+###Test the 20 cases
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+answers <- predict(modrf, test)
+pml_write_files(answers)
+answers
+```
